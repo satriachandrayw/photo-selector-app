@@ -11,7 +11,7 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 
-const routes = ['/', '/frame-selector']; // Add more routes as needed
+const routes = ['template-selection', '/select-photo', '/frame-editor']; // Updated routes based on the app structure
 const currentRouteIndex = computed(() => routes.indexOf(router.currentRoute.value.path));
 
 const isHomePage = computed(() => router.currentRoute.value.path === '/');
