@@ -4,7 +4,8 @@ import path from 'path'
 import { createReadStream } from 'fs'
 import sharp from 'sharp'
 
-const BASE_DIR = '/home/satria/Downloads' // Set this to the directory you want to allow access to
+// const BASE_DIR = '/home/satria/Downloads' // Set this to the directory you want to allow access to
+const BASE_DIR = '/Users/20058963/Documents' // Set this to the directory you want to allow access to
 const THUMBNAIL_SIZE = 100 // Size of the thumbnail in pixels
 
 export default defineEventHandler(async (event) => {

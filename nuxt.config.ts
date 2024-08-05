@@ -1,4 +1,22 @@
 export default defineNuxtConfig({
   compatibilityDate: '2024-04-03',
   devtools: { enabled: true },
+  dir: {
+    public: 'public'
+  },
+  assets: {
+    dirs: ['assets']
+  },
+  nitro: {
+    plugins: ['~/server/plugins/analyze-frames.ts'],
+    routeRules: {
+      '/api/**': { cache: { maxAge: 60 * 60 } }
+    },
+    devServer: {
+      watch: ['server']
+    },
+    workers: {
+      maxTimeout: 10000 // 10 seconds
+    }
+  }
 })

@@ -1,66 +1,77 @@
 <template>
   <div class="template-selection">
-    <h1>Choose a Template</h1>
-    <div class="templates-grid">
-      <div v-for="template in templates" :key="template.id" class="template-item">
-        <TemplatePreview 
-          :layout="template.layout" 
-          :id="template.id"
-          @click="selectTemplate(template)"
-          :class="{ selected: selectedTemplate === template.id }"
-        />
-        <p>{{ template.name }}</p>
+    <h1>Select a Photo Layout</h1>
+    <p>Debug: Component is rendered</p>
+    <div v-if="isLoading" class="loading">
+      Loading templates, please wait...
+    </div>
+    <div v-else>
+      <p>Number of templates: {{ templates.length }}</p>
+      <div class="templates-grid">
+        <div v-for="template in templates" :key="template.id" class="template-item" 
+             :class="{ 'selected': selectedTemplate === template }"
+             @click="selectTemplate(template)">
+          <h3>{{ template.name }} (ID: {{ template.id }})</h3>
+          <div class="frame-preview">
+            <img :src="template.frameSrc" :alt="template.name" class="frame-overlay-preview" />
+            <div v-if="selectedTemplate === template" class="selected-marker">
+              <span class="checkmark">✓</span>
+            </div>
+          </div>
+          <p>Photo slots: {{ template.photoSlots }}</p>
+        </div>
       </div>
     </div>
-    <button @click="goToPhotoSelection" :disabled="!selectedTemplate">Next</button>
+    <button @click="proceedToPhotoSelection" :disabled="!selectedTemplate || isLoading">Next</button>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import TemplatePreview from '~/components/TemplatePreview.vue';
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
-const router = useRouter();
-const selectedTemplate = ref(null);
+const router = useRouter()
 
-const templates = [
-  { id: 1, name: '2x2 Grid', layout: [
-    { x: 0, y: 0, w: 1, h: 1 },
-    { x: 1, y: 0, w: 1, h: 1 },
-    { x: 0, y: 1, w: 1, h: 1 },
-    { x: 1, y: 1, w: 1, h: 1 },
-  ]},
-  { id: 2, name: '3x3 Grid', layout: [
-    { x: 0, y: 0, w: 1, h: 1 }, { x: 1, y: 0, w: 1, h: 1 }, { x: 2, y: 0, w: 1, h: 1 },
-    { x: 0, y: 1, w: 1, h: 1 }, { x: 1, y: 1, w: 1, h: 1 }, { x: 2, y: 1, w: 1, h: 1 },
-    { x: 0, y: 2, w: 1, h: 1 }, { x: 1, y: 2, w: 1, h: 1 }, { x: 2, y: 2, w: 1, h: 1 },
-  ]},
-  { id: 3, name: 'Mixed Layout', layout: [
-    { x: 0, y: 0, w: 2, h: 2 },
-    { x: 2, y: 0, w: 1, h: 1 },
-    { x: 2, y: 1, w: 1, h: 1 },
-    { x: 0, y: 2, w: 1, h: 1 },
-    { x: 1, y: 2, w: 1, h: 1 },
-    { x: 2, y: 2, w: 1, h: 1 },
-  ]},
-];
+const templates = ref([])
+const selectedTemplate = ref(null)
+const isLoading = ref(true)
+
+const fetchTemplates = async () => {
+  try {
+    console.log('Client: Fetching templates')
+    const response = await fetch('/api/templates')
+    if (!response.ok) throw new Error('Failed to fetch templates')
+    const data = await response.json()
+    console.log('Client: Received templates:', JSON.stringify(data, null, 2))
+    templates.value = data
+    console.log('Client: Templates after assignment:', JSON.stringify(templates.value, null, 2))
+  } catch (error) {
+    console.error('Error fetching templates:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const selectTemplate = (template) => {
-  selectedTemplate.value = template.id;
-};
+  selectedTemplate.value = template
+}
 
-const goToPhotoSelection = () => {
+const proceedToPhotoSelection = () => {
   if (selectedTemplate.value) {
     router.push({
       path: '/select-photo',
-      query: { templateId: selectedTemplate.value }
-    });
-  } else {
-    console.error('No template selected');
-    // Optionally, show an error message to the user
+      query: { 
+        templateId: selectedTemplate.value.id,
+        photoSlots: selectedTemplate.value.photoSlots
+      }
+    })
   }
-};
+}
+
+onMounted(() => {
+  console.log('Client: Component mounted, calling fetchTemplates')
+  fetchTemplates()
+})
 </script>
 
 <style scoped>
@@ -72,18 +83,61 @@ const goToPhotoSelection = () => {
 
 .templates-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 20px;
   margin-bottom: 20px;
 }
 
 .template-item {
   text-align: center;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.template-item.selected {
+  border-color: #28a745;
+  background-color: rgba(40, 167, 69, 0.1);
+}
+
+.frame-preview {
+  position: relative;
+  width: 100%;
+  padding-bottom: 100%; /* Maintain aspect ratio */
+  margin-bottom: 10px;
+}
+
+.selected-marker {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: #28a745;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checkmark {
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.frame-overlay-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 button {
-  display: block;
-  margin: 0 auto;
   padding: 10px 20px;
   font-size: 16px;
   background-color: #007bff;
@@ -93,8 +147,18 @@ button {
   cursor: pointer;
 }
 
+button.selected {
+  background-color: #28a745;
+}
+
 button:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
 }
 </style>

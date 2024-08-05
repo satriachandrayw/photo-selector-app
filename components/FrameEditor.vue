@@ -1,8 +1,11 @@
 <template>
   <div class="frame-editor">
-    <div class="image-container">
-      <img :src="imageSrc" alt="Selected Image" class="selected-image" />
-      <div class="frame" :style="frameStyle"></div>
+    <div class="frame-container" :style="frameContainerStyle">
+      <div class="image-container">
+        <img :src="imageSrc" alt="Selected Image" class="selected-image" />
+        <div class="frame" :style="frameStyle"></div>
+      </div>
+      <img class="frame-overlay" :src="'assets/frames/1.png'" alt="Frame Overlay" />
     </div>
     <div class="controls">
       <label>
@@ -35,6 +38,14 @@ const frameStyle = computed(() => ({
   borderColor: frameColor.value,
   borderWidth: `${frameWidth.value}px`,
 }));
+
+const frameContainerStyle = computed(() => ({
+  position: 'relative',
+  width: '100%',
+  height: '0',
+  paddingBottom: '100%',
+  overflow: 'hidden',
+}));
 </script>
 
 <style scoped>
@@ -60,6 +71,19 @@ const frameStyle = computed(() => ({
   right: 0;
   bottom: 0;
   border-style: solid;
+  pointer-events: none;
+}
+
+.frame-container {
+  position: relative;
+}
+
+.frame-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 

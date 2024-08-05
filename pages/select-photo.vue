@@ -1,10 +1,10 @@
 <template>
   <div class="select-photo-page">
     <h1>Select Photos for Your Template</h1>
-    <p v-if="selectedTemplate">Template: {{ templateName }}</p>
+    <p v-if="selectedTemplate">Template: {{ selectedTemplate.name }}</p>
     <p v-else>Loading template...</p>
     <div v-if="selectedTemplate" class="template-preview">
-      <TemplatePreview :layout="selectedTemplate.layout" :id="selectedTemplate.id" />
+      <img :src="selectedTemplate.frameSrc" :alt="selectedTemplate.name" class="frame-overlay-preview" />
     </div>
     <FileExplorer 
       @toggle-image="handleImageToggle"
@@ -19,7 +19,7 @@
     <div class="navigation">
       <button 
         @click="goToFrameEditor" 
-        :disabled="!selectedTemplate || selectedPhotos.length !== selectedTemplate.layout.length"
+        :disabled="!selectedTemplate || selectedPhotos.length !== selectedTemplate.photoSlots"
       >
         Next
       </button>
@@ -31,44 +31,34 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import FileExplorer from '~/components/FileExplorer.vue';
-import TemplatePreview from '~/components/TemplatePreview.vue';
 
 const router = useRouter();
 const route = useRoute();
 
-const templates = [
-  { id: 1, name: '2x2 Grid', layout: [
-    { x: 0, y: 0, w: 1, h: 1 },
-    { x: 1, y: 0, w: 1, h: 1 },
-    { x: 0, y: 1, w: 1, h: 1 },
-    { x: 1, y: 1, w: 1, h: 1 },
-  ]},
-  { id: 2, name: '3x3 Grid', layout: [
-    { x: 0, y: 0, w: 1, h: 1 }, { x: 1, y: 0, w: 1, h: 1 }, { x: 2, y: 0, w: 1, h: 1 },
-    { x: 0, y: 1, w: 1, h: 1 }, { x: 1, y: 1, w: 1, h: 1 }, { x: 2, y: 1, w: 1, h: 1 },
-    { x: 0, y: 2, w: 1, h: 1 }, { x: 1, y: 2, w: 1, h: 1 }, { x: 2, y: 2, w: 1, h: 1 },
-  ]},
-  { id: 3, name: 'Mixed Layout', layout: [
-    { x: 0, y: 0, w: 2, h: 2 },
-    { x: 2, y: 0, w: 1, h: 1 },
-    { x: 2, y: 1, w: 1, h: 1 },
-    { x: 0, y: 2, w: 1, h: 1 },
-    { x: 1, y: 2, w: 1, h: 1 },
-    { x: 2, y: 2, w: 1, h: 1 },
-  ]},
-];
-
 const selectedTemplate = ref(null);
 const selectedPhotos = ref([]);
+const error = ref(null);
 
-const templateName = computed(() => selectedTemplate.value ? selectedTemplate.value.name : 'No template selected');
+const fetchTemplate = async (templateId) => {
+  try {
+    const response = await fetch(`/api/templates/${templateId}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    selectedTemplate.value = await response.json();
+    console.log('Fetched template:', selectedTemplate.value);
+  } catch (e) {
+    console.error('Error fetching template:', e);
+    error.value = 'Failed to load template. Please try again.';
+  }
+};
 
 const handleImageToggle = (image) => {
   const index = selectedPhotos.value.findIndex(photo => photo.name === image.name);
   if (index !== -1) {
     // If the image is already selected, remove it
     selectedPhotos.value.splice(index, 1);
-  } else if (selectedTemplate.value && selectedPhotos.value.length < selectedTemplate.value.layout.length) {
+  } else if (selectedTemplate.value && selectedPhotos.value.length < selectedTemplate.value.photoSlots) {
     // If the image is not selected and there's room for more photos, add it
     selectedPhotos.value.push(image);
   }
@@ -90,11 +80,12 @@ const goToFrameEditor = () => {
   }
 };
 
-onMounted(() => {
-  const templateId = parseInt(route.query.templateId);
-  selectedTemplate.value = templates.find(t => t.id === templateId) || null;
-  if (!selectedTemplate.value) {
-    console.error('Invalid template ID:', templateId);
+onMounted(async () => {
+  const templateId = route.query.templateId;
+  if (templateId) {
+    await fetchTemplate(templateId);
+  } else {
+    console.error('No template ID provided');
     router.push('/template-selection');
   }
 });
@@ -110,6 +101,11 @@ onMounted(() => {
 .template-preview {
   max-width: 300px;
   margin: 0 auto 2rem;
+}
+
+.frame-overlay-preview {
+  width: 100%;
+  height: auto;
 }
 
 .selected-photos {
@@ -172,5 +168,11 @@ button {
 button:disabled {
   background-color: #cccccc;
   cursor: not-allowed;
+}
+
+.error-message {
+  color: red;
+  font-weight: bold;
+  margin-bottom: 1rem;
 }
 </style>
