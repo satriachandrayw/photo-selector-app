@@ -51,9 +51,10 @@ export default defineEventHandler(async (event) => {
         .toFormat('jpeg')
         .toBuffer()
 
+      const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`
       console.log('Thumbnail generated successfully')
-      event.res.setHeader('Content-Type', 'image/jpeg')
-      event.res.end(buffer)
+      event.res.setHeader('Content-Type', 'text/plain')
+      event.res.end(dataUrl)
       return
     } catch (error) {
       console.error('Error generating thumbnail:', error)

@@ -1,34 +1,65 @@
 <template>
-  <div class="select-photo-page">
-    <h1>Select Photos for Your Template</h1>
-    <p v-if="selectedTemplate">Template: {{ selectedTemplate.name }}</p>
-    <p v-else>Loading template...</p>
-    <div v-if="selectedTemplate" class="template-preview">
-      <img :src="selectedTemplate.frameSrc" :alt="selectedTemplate.name" class="frame-overlay-preview" />
-    </div>
-    <FileExplorer 
-      @toggle-image="handleImageToggle"
-      :selectedPhotos="selectedPhotos"
-    />
-    <div class="selected-photos">
-      <div v-for="(photo, index) in selectedPhotos" :key="index" class="selected-photo">
-        <img :src="photo.path" :alt="photo.name" />
-        <button @click="removePhoto(index)" class="remove-button" title="Remove photo">×</button>
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-4">Select Photos for Your Template</h1>
+    
+    <p v-if="loading" class="text-gray-600">Loading template...</p>
+    <p v-else-if="error" class="text-red-600 font-semibold mb-4">{{ error }}</p>
+    
+    <div v-else-if="selectedTemplate" class="mb-8">
+      <div class="relative" ref="containerRef">
+        <img 
+          :src="selectedTemplate.frameSrc" 
+          :alt="selectedTemplate.name"
+          @load="onImageLoad"
+          @error="onImageError"
+          class="w-full transition-opacity duration-300"
+          :class="{ 'opacity-0': !imageLoaded, 'opacity-100': imageLoaded }"
+          ref="imageRef"
+        />
+        <div 
+          v-for="(slot, index) in selectedTemplate.slots" 
+          :key="index" 
+          class="absolute border-2 border-dashed border-blue-400 overflow-hidden"
+          :style="getSlotStyle(slot)"
+        >
+          <img 
+            v-if="selectedPhotos[index]" 
+            :src="selectedPhotos[index].path" 
+            :alt="selectedPhotos[index].name" 
+            class="w-full h-full object-cover"
+          />
+          <div 
+            v-else 
+            class="w-full h-full flex items-center justify-center bg-gray-100 cursor-pointer hover:bg-gray-200 transition-colors duration-200"
+            @click="openFileExplorer(index)"
+          >
+            <span class="text-sm text-gray-600">Click to select photo (Slot {{ index + 1 }})</span>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="navigation">
+    
+    <FileExplorer 
+      v-if="showFileExplorer"
+      @select-image="handleImageSelect"
+      :selectedPhotos="selectedPhotos"
+      class="mb-8"
+    />
+    
+    <div class="text-center">
       <button 
         @click="goToFrameEditor" 
-        :disabled="!selectedTemplate || selectedPhotos.length !== selectedTemplate.photoSlots"
+        :disabled="!allPhotosSelected"
+        class="px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
       >
-        Next
+        Next: Adjust Photos
       </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import FileExplorer from '~/components/FileExplorer.vue';
 
@@ -37,47 +68,85 @@ const route = useRoute();
 
 const selectedTemplate = ref(null);
 const selectedPhotos = ref([]);
+const currentSlotIndex = ref(null);
+const showFileExplorer = ref(false);
+const loading = ref(true);
 const error = ref(null);
+const imageLoaded = ref(false);
+const containerRef = ref(null);
+const imageRef = ref(null);
+const imageDimensions = ref({ width: 0, height: 0 });
 
-const fetchTemplate = async (templateId) => {
-  try {
-    const response = await fetch(`/api/templates/${templateId}`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    selectedTemplate.value = await response.json();
-    console.log('Fetched template:', selectedTemplate.value);
-  } catch (e) {
-    console.error('Error fetching template:', e);
-    error.value = 'Failed to load template. Please try again.';
+const getSlotStyle = (slot) => {
+  if (!imageDimensions.value.width || !imageDimensions.value.height) return {};
+  return {
+    left: `${(slot.x / imageDimensions.value.width) * 100}%`,
+    top: `${(slot.y / imageDimensions.value.height) * 100}%`,
+    width: `${(slot.width / imageDimensions.value.width) * 100}%`,
+    height: `${(slot.height / imageDimensions.value.height) * 100}%`,
+  };
+};
+
+const handleImageSelect = (image) => {
+  if (currentSlotIndex.value !== null) {
+    selectedPhotos.value[currentSlotIndex.value] = image;
+    currentSlotIndex.value = null;
+    showFileExplorer.value = false;
   }
 };
 
-const handleImageToggle = (image) => {
-  const index = selectedPhotos.value.findIndex(photo => photo.name === image.name);
-  if (index !== -1) {
-    // If the image is already selected, remove it
-    selectedPhotos.value.splice(index, 1);
-  } else if (selectedTemplate.value && selectedPhotos.value.length < selectedTemplate.value.photoSlots) {
-    // If the image is not selected and there's room for more photos, add it
-    selectedPhotos.value.push(image);
-  }
+const openFileExplorer = (index) => {
+  currentSlotIndex.value = index;
+  showFileExplorer.value = true;
 };
 
-const removePhoto = (index) => {
-  selectedPhotos.value.splice(index, 1);
-};
+const allPhotosSelected = computed(() => {
+  return selectedTemplate.value && 
+         selectedPhotos.value.length === selectedTemplate.value.slots.length && 
+         selectedPhotos.value.every(photo => photo !== null && photo !== undefined);
+});
 
 const goToFrameEditor = () => {
-  if (selectedTemplate.value) {
+  if (allPhotosSelected.value) {
     router.push({
-      path: '/frame-editor',
+      name: 'frame-editor',
       query: { 
         templateId: selectedTemplate.value.id,
-        photos: JSON.stringify(selectedPhotos.value)
+        photos: JSON.stringify(selectedPhotos.value.map(photo => photo.path))
       }
     });
   }
+};
+
+const fetchTemplate = async (templateId) => {
+  try {
+    loading.value = true;
+    error.value = null;
+    const response = await fetch(`/api/templates/${templateId}`);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    selectedTemplate.value = data;
+    selectedPhotos.value = new Array(data.slots.length).fill(null);
+  } catch (error) {
+    console.error('Error fetching template:', error);
+    error.value = 'Failed to load template. Please try again.';
+  } finally {
+    loading.value = false;
+  }
+};
+
+const onImageLoad = () => {
+  imageLoaded.value = true;
+  if (imageRef.value) {
+    imageDimensions.value = {
+      width: imageRef.value.naturalWidth,
+      height: imageRef.value.naturalHeight
+    };
+  }
+};
+
+const onImageError = () => {
+  error.value = 'Failed to load template image. Please try again.';
 };
 
 onMounted(async () => {
@@ -86,93 +155,8 @@ onMounted(async () => {
     await fetchTemplate(templateId);
   } else {
     console.error('No template ID provided');
-    router.push('/template-selection');
+    error.value = 'No template selected. Please choose a template first.';
+    setTimeout(() => router.push('/template-selection'), 3000);
   }
 });
 </script>
-
-<style scoped>
-.select-photo-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.template-preview {
-  max-width: 300px;
-  margin: 0 auto 2rem;
-}
-
-.frame-overlay-preview {
-  width: 100%;
-  height: auto;
-}
-
-.selected-photos {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-.selected-photo {
-  position: relative;
-  width: 100px;
-  height: 100px;
-}
-
-.selected-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.remove-button {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background-color: rgba(255, 0, 0, 0.7);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-}
-
-.remove-button:hover {
-  background-color: rgba(255, 0, 0, 0.9);
-}
-
-.navigation {
-  margin-top: 2rem;
-  text-align: center;
-}
-
-button {
-  padding: 0.5rem 1rem;
-  font-size: 1rem;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-.error-message {
-  color: red;
-  font-weight: bold;
-  margin-bottom: 1rem;
-}
-</style>

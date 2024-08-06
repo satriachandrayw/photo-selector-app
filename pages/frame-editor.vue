@@ -1,28 +1,3 @@
-<template>
-  <div class="frame-editor">
-    <h1>Arrange Your Photos</h1>
-    <div class="frame-container" :style="frameContainerStyle">
-      <div v-for="(cell, index) in layout" :key="index" class="frame-cell" :style="getCellStyle(cell)">
-        <div v-if="selectedPhotos[index]" class="photo-container" :style="getPhotoContainerStyle(index)">
-          <img :src="selectedPhotos[index].path" :alt="selectedPhotos[index].name" class="photo" :style="getPhotoStyle(index)" @mousedown="startDrag(index, $event)" />
-        </div>
-      </div>
-    </div>
-    <div class="controls">
-      <div v-for="(photo, index) in selectedPhotos" :key="index" class="photo-control">
-        <img :src="photo.path" :alt="photo.name" class="thumbnail" />
-        <div class="sliders">
-          <label>
-            Scale:
-            <input type="range" min="0.1" max="2" step="0.1" v-model="photoStyles[index].scale" />
-          </label>
-        </div>
-      </div>
-    </div>
-    <button @click="saveArrangement">Save Arrangement</button>
-  </div>
-</template>
-
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
@@ -30,163 +5,182 @@ import { useRouter, useRoute } from 'vue-router';
 const router = useRouter();
 const route = useRoute();
 
-const selectedPhotos = ref([]);
-const layout = ref([]);
-const photoStyles = ref([]);
 const selectedTemplate = ref(null);
+const selectedPhotos = ref([]);
+const photoAdjustments = ref([]);
 
-const frameContainerStyle = computed(() => {
-  const maxX = Math.max(...layout.value.map(cell => cell.x + cell.w));
-  const maxY = Math.max(...layout.value.map(cell => cell.y + cell.h));
-  return {
-    display: 'grid',
-    gridTemplateColumns: `repeat(${maxX}, 1fr)`,
-    gridTemplateRows: `repeat(${maxY}, 1fr)`,
-    aspectRatio: `${maxX} / ${maxY}`,
-    width: '100%',
-    maxWidth: '800px',
-    margin: '0 auto',
-    gap: '4px',
-    backgroundColor: '#ccc',
-    padding: '4px',
-  };
-});
-
-const getCellStyle = (cell) => ({
-  gridColumn: `${cell.x + 1} / span ${cell.w}`,
-  gridRow: `${cell.y + 1} / span ${cell.h}`,
-  backgroundColor: 'white',
-  overflow: 'hidden',
-  position: 'relative',
-});
-
-const getPhotoContainerStyle = (index) => ({
+const frameContainerStyle = computed(() => ({
+  backgroundImage: `url(${selectedTemplate.value?.frameSrc})`,
+  backgroundSize: 'contain',
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'center',
   width: '100%',
-  height: '100%',
-  overflow: 'hidden',
+  maxWidth: '800px',
+  aspectRatio: selectedTemplate.value ? `${selectedTemplate.value.width} / ${selectedTemplate.value.height}` : '1',
+  margin: '0 auto',
   position: 'relative',
-});
+}));
 
-const getPhotoStyle = (index) => ({
+const getSlotStyle = (slot) => ({
   position: 'absolute',
-  left: `${photoStyles.value[index].x}%`,
-  top: `${photoStyles.value[index].y}%`,
-  width: `${photoStyles.value[index].scale * 100}%`,
-  height: `${photoStyles.value[index].scale * 100}%`,
-  objectFit: 'cover',
-  transform: 'translate(-50%, -50%)',
-  cursor: 'move',
+  left: `${(slot.x / selectedTemplate.value.width) * 100}%`,
+  top: `${(slot.y / selectedTemplate.value.height) * 100}%`,
+  width: `${(slot.width / selectedTemplate.value.width) * 100}%`,
+  height: `${(slot.height / selectedTemplate.value.height) * 100}%`,
+  overflow: 'hidden',
 });
 
-const startDrag = (index, event) => {
-  event.preventDefault();
-  const cell = event.target.closest('.frame-cell');
-  const cellRect = cell.getBoundingClientRect();
-  const photoStyle = photoStyles.value[index];
-
-  const moveHandler = (moveEvent) => {
-    const x = ((moveEvent.clientX - cellRect.left) / cellRect.width) * 100;
-    const y = ((moveEvent.clientY - cellRect.top) / cellRect.height) * 100;
-    photoStyle.x = Math.max(0, Math.min(100, x));
-    photoStyle.y = Math.max(0, Math.min(100, y));
+const getPhotoStyle = (index) => {
+  const adjustment = photoAdjustments.value[index];
+  return {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    transform: `translate(${adjustment.x}px, ${adjustment.y}px) scale(${adjustment.scale}) rotate(${adjustment.rotation}deg)`,
+    transition: 'transform 0.3s ease',
   };
+};
 
-  const upHandler = () => {
-    document.removeEventListener('mousemove', moveHandler);
-    document.removeEventListener('mouseup', upHandler);
-  };
+const adjustPhoto = (index, type, value) => {
+  const adjustment = photoAdjustments.value[index];
+  switch (type) {
+    case 'moveX':
+      adjustment.x += value;
+      break;
+    case 'moveY':
+      adjustment.y += value;
+      break;
+    case 'zoom':
+      adjustment.scale = Math.max(0.1, adjustment.scale + value);
+      break;
+    case 'rotate':
+      adjustment.rotation += value;
+      break;
+  }
+};
 
-  document.addEventListener('mousemove', moveHandler);
-  document.addEventListener('mouseup', upHandler);
+const fitToSlot = (index) => {
+  photoAdjustments.value[index] = { x: 0, y: 0, scale: 1, rotation: 0 };
 };
 
 const saveArrangement = () => {
-  const arrangementData = {
-    photos: selectedPhotos.value,
-    styles: photoStyles.value,
-    layout: layout.value,
-    templateName: selectedTemplate.value ? selectedTemplate.value.name : 'Custom Template'
-  };
-  
-  router.push({
-    path: '/result-preview',
-    query: { arrangement: JSON.stringify(arrangementData) }
-  });
+  // Implement save functionality here
+  console.log('Saving arrangement:', { template: selectedTemplate.value, photos: selectedPhotos.value, adjustments: photoAdjustments.value });
+  // You might want to send this data to your backend or store it locally
 };
 
-onMounted(() => {
-  const templateId = parseInt(route.query.templateId);
+onMounted(async () => {
+  const templateId = route.query.templateId;
   const photosJson = route.query.photos;
 
   if (!templateId || !photosJson) {
     console.error('Missing template ID or photos');
-    router.push('/template-selection');
+    router.push('/photo-selection');
     return;
   }
 
-  // Fetch the template layout based on the templateId
-  // This is a placeholder. You should replace it with actual data fetching logic.
-  const templates = [
-    { id: 1, name: '2x2 Grid', layout: [
-      { x: 0, y: 0, w: 1, h: 1 },
-      { x: 1, y: 0, w: 1, h: 1 },
-      { x: 0, y: 1, w: 1, h: 1 },
-      { x: 1, y: 1, w: 1, h: 1 },
-    ]},
-    // ... other templates ...
-  ];
-
-  selectedTemplate.value = templates.find(t => t.id === templateId);
-  if (!selectedTemplate.value) {
-    console.error('Invalid template ID');
-    router.push('/template-selection');
-    return;
+  try {
+    const response = await fetch(`/api/templates/${templateId}`);
+    if (!response.ok) throw new Error('Failed to fetch template');
+    selectedTemplate.value = await response.json();
+    selectedPhotos.value = JSON.parse(photosJson);
+    photoAdjustments.value = selectedPhotos.value.map(() => ({ x: 0, y: 0, scale: 1, rotation: 0 }));
+  } catch (error) {
+    console.error('Error setting up frame editor:', error);
+    router.push('/photo-selection');
   }
-
-  layout.value = selectedTemplate.value.layout;
-  selectedPhotos.value = JSON.parse(photosJson);
-
-  // Initialize photoStyles
-  photoStyles.value = selectedPhotos.value.map(() => ({
-    x: 50,
-    y: 50,
-    scale: 1,
-  }));
 });
 </script>
+
+<template>
+  <div class="frame-editor">
+    <h1>Adjust Your Photos</h1>
+    <div v-if="selectedTemplate" class="frame-container" :style="frameContainerStyle">
+      <div v-for="(slot, index) in selectedTemplate.slots" :key="index" class="photo-slot" :style="getSlotStyle(slot)">
+        <img 
+          :src="selectedPhotos[index].path" 
+          :alt="selectedPhotos[index].name" 
+          class="photo" 
+          :style="getPhotoStyle(index)"
+        />
+      </div>
+    </div>
+    <div class="controls">
+      <div v-for="(photo, index) in selectedPhotos" :key="index" class="photo-control">
+        <img :src="photo.path" :alt="photo.name" class="thumbnail" />
+        <div class="adjustment-controls">
+          <button @click="adjustPhoto(index, 'moveX', -10)">←</button>
+          <button @click="adjustPhoto(index, 'moveX', 10)">→</button>
+          <button @click="adjustPhoto(index, 'moveY', -10)">↑</button>
+          <button @click="adjustPhoto(index, 'moveY', 10)">↓</button>
+          <button @click="adjustPhoto(index, 'zoom', 0.1)">Zoom +</button>
+          <button @click="adjustPhoto(index, 'zoom', -0.1)">Zoom -</button>
+          <button @click="adjustPhoto(index, 'rotate', 90)">Rotate</button>
+          <button @click="fitToSlot(index)">Fit to Slot</button>
+        </div>
+      </div>
+    </div>
+    <button @click="saveArrangement" class="save-button">Save Arrangement</button>
+  </div>
+</template>
 
 <style scoped>
 .frame-editor {
   padding: 20px;
 }
 
+.frame-container {
+  border: 1px solid #ccc;
+  margin-bottom: 20px;
+}
+
+.photo-slot {
+  position: absolute;
+}
+
+.photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
   gap: 20px;
-  margin-top: 20px;
+  margin-bottom: 20px;
 }
 
 .photo-control {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
 }
 
 .thumbnail {
-  width: 50px;
-  height: 50px;
+  width: 100px;
+  height: 100px;
   object-fit: cover;
+  margin-bottom: 10px;
 }
 
-.sliders {
-  display: flex;
-  flex-direction: column;
+.adjustment-controls {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
 }
 
 button {
-  margin-top: 20px;
+  padding: 5px 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.save-button {
+  display: block;
+  margin: 20px auto;
   padding: 10px 20px;
+  font-size: 16px;
   background-color: #007bff;
   color: white;
   border: none;
@@ -194,7 +188,7 @@ button {
   cursor: pointer;
 }
 
-button:hover {
+.save-button:hover {
   background-color: #0056b3;
 }
 </style>

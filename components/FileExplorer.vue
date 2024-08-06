@@ -1,23 +1,25 @@
 <template>
-  <div class="file-explorer">
-    <div class="path-navigation">
-      <button @click="navigateUp">Up</button>
-      <span>{{ currentPath }}</span>
+  <div class="border border-gray-300 p-4 max-h-96 overflow-y-auto">
+    <div class="mb-4 flex items-center">
+      <button @click="navigateUp" class="bg-blue-500 text-white px-3 py-1 rounded mr-2 hover:bg-blue-600 transition-colors">Up</button>
+      <span class="text-gray-600">{{ currentPath }}</span>
     </div>
-    <div class="file-list">
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
       <div v-for="item in fileList" 
            :key="item.name" 
            @click="handleItemClick(item)" 
-           class="file-item"
-           :class="{ 'selected': isSelected(item) }"
+           class="aspect-square cursor-pointer p-2 rounded-lg transition-colors hover:bg-gray-100"
+           :class="{ 'bg-blue-100 border-2 border-blue-500': isSelected(item) }"
            :title="item.name">
-        <div class="file-item-content">
+        <div class="w-full h-full flex justify-center items-center">
           <img v-if="item.isImage" 
                :src="item.thumbnailUrl" 
                :alt="item.name" 
-               class="thumbnail"
+               class="w-full h-full object-cover rounded"
                @error="handleImageError(item)">
-          <span v-else class="material-icons">{{ item.type === 'directory' ? 'folder' : 'insert_drive_file' }}</span>
+          <span v-else class="text-4xl text-gray-400">
+            {{ item.type === 'directory' ? '📁' : '📄' }}
+          </span>
         </div>
       </div>
     </div>
@@ -25,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 
 const props = defineProps({
   selectedPhotos: {
@@ -36,20 +38,24 @@ const props = defineProps({
 
 const currentPath = ref('/');
 const fileList = ref([]);
+const error = ref(null);
 
-const emit = defineEmits(['toggle-image']);
+const emit = defineEmits(['select-image']);
 
-const fetchFileList = async (path) => {
+const fetchFileList = async (path = '/') => {
   try {
-    const response = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
+    error.value = null;
+    const encodedPath = encodeURIComponent(path);
+    const response = await fetch(`/api/files?path=${encodedPath}`);
     if (!response.ok) {
-      throw new Error('Failed to fetch file list');
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json();
-    console.log('Fetched file list:', data);
     fileList.value = data;
-  } catch (error) {
-    console.error('Error fetching file list:', error);
+    currentPath.value = path;
+  } catch (err) {
+    console.error('Error fetching file list:', err);
+    error.value = 'Failed to fetch file list. Please try again.';
   }
 };
 
@@ -62,7 +68,7 @@ const handleItemClick = (item) => {
     currentPath.value = joinPaths(currentPath.value, item.name);
     fetchFileList(currentPath.value);
   } else if (item.isImage) {
-    console.log('Toggled image:', item);
+    console.log('Selected image:', item);
     const imagePath = joinPaths(currentPath.value, item.name);
     const imageData = {
       path: `/api/files?path=${encodeURIComponent(imagePath)}`,
@@ -70,7 +76,7 @@ const handleItemClick = (item) => {
       size: item.size,
       modifiedDate: item.modifiedDate
     };
-    emit('toggle-image', imageData);
+    emit('select-image', imageData);
   }
 };
 
@@ -92,64 +98,7 @@ const isSelected = (item) => {
   return props.selectedPhotos.some(photo => photo.name === item.name);
 };
 
-fetchFileList(currentPath.value);
+onMounted(() => {
+  fetchFileList(currentPath.value);
+});
 </script>
-
-<style scoped>
-.file-explorer {
-  border: 1px solid #ccc;
-  padding: 10px;
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.path-navigation {
-  margin-bottom: 10px;
-}
-
-.file-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 10px;
-}
-
-.file-item {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  padding: 5px;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  position: relative;
-  aspect-ratio: 1 / 1;
-}
-
-.file-item:hover {
-  background-color: #f0f0f0;
-}
-
-.file-item.selected {
-  border-color: #007bff;
-  background-color: #e6f2ff;
-}
-
-.file-item-content {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-}
-
-.material-icons {
-  font-size: 48px;
-}
-
-.thumbnail {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-</style>

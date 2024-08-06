@@ -15,6 +15,10 @@
     "vue": "latest"
   },
   "devDependencies": {
-    "@types/sharp": "^0.32.0"
+    "@nuxtjs/tailwindcss": "^6.12.1",
+    "@types/sharp": "^0.32.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.40",
+    "tailwindcss": "^3.4.7"
   }
 }

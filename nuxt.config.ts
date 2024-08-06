@@ -18,5 +18,8 @@ export default defineNuxtConfig({
     workers: {
       maxTimeout: 10000 // 10 seconds
     }
-  }
+  },
+  modules: [
+    '@nuxtjs/tailwindcss'
+  ]
 })
