@@ -2,10 +2,8 @@ import { defineEventHandler, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {
   const id = event.context.params?.id
-  console.log(`API: Received request for template ID: ${id}`)
 
   if (!id) {
-    console.log('API: No template ID provided')
     throw createError({
       statusCode: 400,
       statusMessage: 'Template ID is required'

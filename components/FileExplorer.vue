@@ -50,6 +50,7 @@ const fetchFileList = async (path = '') => {
     const data = await response.json();
     files.value = data.files;
     currentPath.value = data.currentPath;
+    console.log('Fetched files:', files.value);
   } catch (error) {
     console.error('Error fetching file list:', error);
   }
@@ -64,6 +65,7 @@ const navigateUp = () => {
 };
 
 const selectFile = (file) => {
+  console.log('File selected:', file);
   if (file.type === 'directory') {
     navigateTo(file.name);
   } else if (file.isImage) {

@@ -10,10 +10,11 @@ export default defineEventHandler(async (event) => {
 
   try {
     const query = getQuery(event)
-    const requestedPath = (query.path as string || '').replace(/^\/+/, '')
+    const requestedPath = query.path as string || ''
+
     const fullPath = path.join(BASE_DIR, requestedPath)
     console.log("fullPath", fullPath);
-    
+    console.log('Listing directory:', fullPath);
 
     // Ensure the path is within the allowed directory
     if (!fullPath.startsWith(BASE_DIR)) {
@@ -42,7 +43,8 @@ export default defineEventHandler(async (event) => {
         }
       }))
 
-      console.log('Filtered file list:', fileList.filter(item => item !== null))
+      console.log('File list:', fileList);
+
       return {
         files: fileList.filter(item => item !== null),
         currentPath: path.relative(BASE_DIR, fullPath)

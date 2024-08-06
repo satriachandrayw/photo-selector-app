@@ -46,7 +46,7 @@
     <FileExplorer 
       v-if="showFileExplorer"
       :selected-photos="selectedPhotos"
-      @select-image="handleImageSelect"
+      @select-image="(image) => handleImageSelect(image, currentSlotIndex)"
       class="mb-8"
     />
     
@@ -151,12 +151,18 @@ const allPhotosSelected = computed(() => {
 
 const goToFrameEditor = () => {
   if (allPhotosSelected.value) {
-    router.push({
-      name: 'frame-editor',
-      query: { 
-        templateId: selectedTemplate.value.id,
-        photos: JSON.stringify(selectedPhotos.value.map(photo => photo.path))
-      }
+    console.log('Selected photos before navigation:', selectedPhotos.value);
+    const queryParams = {
+      templateId: selectedTemplate.value.id,
+      photos: JSON.stringify(selectedPhotos.value.map(photo => ({
+        name: photo.name, // Make sure this is the correct file name
+        path: photo.path
+      })))
+    };
+    console.log('Query params for navigation:', queryParams);
+    router.push({ 
+      path: '/frame-editor',
+      query: queryParams
     });
   }
 };

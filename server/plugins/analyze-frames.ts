@@ -10,23 +10,19 @@ if (!fs.existsSync(cacheDir)) {
 
 async function analyzeFrame(framePath: string) {
   const fullPath = path.join(process.cwd(), 'public', framePath)
-  console.log(`Analyzing frame: ${fullPath}`)
 
   try {
     const image = sharp(fullPath)
     const metadata = await image.metadata()
-    console.log(`Image metadata:`, metadata)
 
-    // Extract the alpha channel
     const { data, info } = await image
       .extractChannel('alpha')
       .raw()
       .toBuffer({ resolveWithObject: true })
 
     const { width, height } = info
-    console.log(`Processed image info:`, info)
 
-    const alphaThreshold = 10 // Adjust this value if needed
+    const alphaThreshold = 10
     const slots = []
     const visited = new Uint8Array(width * height)
 
@@ -35,24 +31,20 @@ async function analyzeFrame(framePath: string) {
         const idx = y * width + x
         if (data[idx] < alphaThreshold && !visited[idx]) {
           const slot = floodFill(data, visited, width, height, x, y, alphaThreshold)
-          if (slot.width > 20 && slot.height > 20) { // Ignore small areas
+          if (slot.width > 20 && slot.height > 20) {
             slots.push(slot)
           }
         }
       }
     }
 
-    // Sort slots by position (top-left to bottom-right)
     slots.sort((a, b) => {
-      if (Math.abs(a.y - b.y) < 10) { // If y-coordinates are close, sort by x
+      if (Math.abs(a.y - b.y) < 10) {
         return a.x - b.x;
       }
       return a.y - b.y;
     });
 
-    console.log(`Detected slots:`, slots)
-
-    // Create a debug image
     const debugImage = sharp({
       create: {
         width: width,
@@ -82,10 +74,11 @@ async function analyzeFrame(framePath: string) {
 
     return {
       photoSlots: slots.length,
-      slots: slots
+      slots: slots,
+      width: width,
+      height: height
     }
   } catch (error) {
-    console.error('Error processing image:', error)
     throw error
   }
 }
@@ -105,7 +98,7 @@ function floodFill(data: Uint8Array, visited: Uint8Array, width: number, height:
     minX = Math.min(minX, x)
     maxX = Math.max(maxX, x)
     minY = Math.min(minY, y)
-    maxY = Math.max(maxY, y)
+    maxY = Math.max(maxY, y) 
 
     if (x > 0) stack.push({x: x-1, y})
     if (x < width-1) stack.push({x: x+1, y})
@@ -127,6 +120,8 @@ interface Template {
   frameSrc: string;
   photoSlots?: number;
   slots?: Array<{ x: number; y: number; width: number; height: number }>;
+  width?: number;
+  height?: number;
 }
 
 const templates: Template[] = [
@@ -153,23 +148,21 @@ const templates: Template[] = [
 ];
 
 export default defineNitroPlugin(async (nitroApp) => {
-  console.log('Analyzing frames and preparing templates...')
-  
   for (const template of templates) {
-    console.log(`Analyzing frame for template: ${template.name} (ID: ${template.id})`)
     try {
       const result = await analyzeFrame(template.frameSrc)
       template.photoSlots = result.photoSlots
       template.slots = result.slots
-      console.log(`Analysis complete for ${template.name}: ${template.photoSlots} slots found`)
+      template.width = result.width
+      template.height = result.height
     } catch (error) {
       console.error(`Error analyzing frame for template ${template.id}:`, error)
       template.photoSlots = 0
       template.slots = []
+      template.width = 0
+      template.height = 0
     }
   }
 
   await useStorage().setItem('templates', templates)
-  console.log('Stored templates:', await useStorage().getItem('templates'))
-  console.log('Template preparation complete')
 })

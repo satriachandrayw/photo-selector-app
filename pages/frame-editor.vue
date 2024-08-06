@@ -8,6 +8,26 @@ const route = useRoute();
 const selectedTemplate = ref(null);
 const selectedPhotos = ref([]);
 const photoAdjustments = ref([]);
+const isLoading = ref(true);
+const error = ref(null);
+
+const fetchFilePath = async (fileName) => {
+  try {
+    console.log('Fetching file for:', fileName);
+    const response = await fetch(`/api/files/${encodeURIComponent(fileName)}`);
+    console.log('API response status:', response.status);
+    if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
+    
+    // Create a blob URL from the response
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    
+    return { name: fileName, url };
+  } catch (error) {
+    console.error('Error fetching file:', error);
+    return null;
+  }
+};
 
 const frameContainerStyle = computed(() => ({
   backgroundImage: `url(${selectedTemplate.value?.frameSrc})`,
@@ -73,9 +93,11 @@ onMounted(async () => {
   const templateId = route.query.templateId;
   const photosJson = route.query.photos;
 
+  console.log('Route query:', route.query);
+
   if (!templateId || !photosJson) {
     console.error('Missing template ID or photos');
-    router.push('/photo-selection');
+    router.push('/select-photo');
     return;
   }
 
@@ -83,11 +105,27 @@ onMounted(async () => {
     const response = await fetch(`/api/templates/${templateId}`);
     if (!response.ok) throw new Error('Failed to fetch template');
     selectedTemplate.value = await response.json();
-    selectedPhotos.value = JSON.parse(photosJson);
+    
+    const parsedPhotos = JSON.parse(photosJson);
+    console.log('Parsed photos:', parsedPhotos);
+    
+    // Fetch actual files for each photo
+    const photoPromises = parsedPhotos.map(async (photo) => {
+      console.log('Processing photo:', photo);
+      const fileData = await fetchFilePath(photo.name);
+      console.log('Fetched file data:', fileData);
+      return fileData;
+    });
+    
+    selectedPhotos.value = await Promise.all(photoPromises);
+    console.log('Selected photos with fetched data:', selectedPhotos.value);
+    
     photoAdjustments.value = selectedPhotos.value.map(() => ({ x: 0, y: 0, scale: 1, rotation: 0 }));
+    isLoading.value = false;
   } catch (error) {
     console.error('Error setting up frame editor:', error);
-    router.push('/photo-selection');
+    error.value = error.message;
+    router.push('/select-photo');
   }
 });
 </script>
@@ -98,11 +136,15 @@ onMounted(async () => {
     <div v-if="selectedTemplate" class="frame-container" :style="frameContainerStyle">
       <div v-for="(slot, index) in selectedTemplate.slots" :key="index" class="photo-slot" :style="getSlotStyle(slot)">
         <img 
-          :src="selectedPhotos[index].path" 
+          v-if="selectedPhotos[index] && selectedPhotos[index].url"
+          :src="selectedPhotos[index].url" 
           :alt="selectedPhotos[index].name" 
           class="photo" 
           :style="getPhotoStyle(index)"
         />
+        <div v-else class="placeholder">
+          Image not found
+        </div>
       </div>
     </div>
     <div class="controls">
@@ -112,7 +154,7 @@ onMounted(async () => {
           <button @click="adjustPhoto(index, 'moveX', -10)">←</button>
           <button @click="adjustPhoto(index, 'moveX', 10)">→</button>
           <button @click="adjustPhoto(index, 'moveY', -10)">↑</button>
-          <button @click="adjustPhoto(index, 'moveY', 10)">↓</button>
+          <button @click="adjustPhoto(index, 'moveY', 10)">��</button>
           <button @click="adjustPhoto(index, 'zoom', 0.1)">Zoom +</button>
           <button @click="adjustPhoto(index, 'zoom', -0.1)">Zoom -</button>
           <button @click="adjustPhoto(index, 'rotate', 90)">Rotate</button>
@@ -121,6 +163,8 @@ onMounted(async () => {
       </div>
     </div>
     <button @click="saveArrangement" class="save-button">Save Arrangement</button>
+    <div v-if="isLoading" class="loading">Loading...</div>
+    <div v-if="error" class="error">{{ error }}</div>
   </div>
 </template>
 
@@ -190,5 +234,19 @@ button {
 
 .save-button:hover {
   background-color: #0056b3;
+}
+
+.loading {
+  color: #333;
+  font-size: 18px;
+  font-weight: bold;
+  margin-top: 20px;
+}
+
+.error {
+  color: #cc0000;
+  font-size: 18px;
+  font-weight: bold;
+  margin-top: 20px;
 }
 </style>
