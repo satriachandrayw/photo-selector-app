@@ -22,15 +22,19 @@
           class="absolute border-2 border-dashed border-blue-400 overflow-hidden"
           :style="getSlotStyle(slot)"
         >
-          <img 
-            v-if="selectedPhotos[index]" 
-            :src="selectedPhotos[index].path" 
-            :alt="selectedPhotos[index].name" 
-            class="w-full h-full object-cover"
-          />
-          <div 
-            v-else 
-            class="w-full h-full flex items-center justify-center bg-gray-100 cursor-pointer hover:bg-gray-200 transition-colors duration-200"
+          <div v-if="selectedPhotos[index] && selectedPhotos[index].path" class="w-full h-full relative">
+            <img 
+              :src="getImageSrc(selectedPhotos[index])"
+              :alt="selectedPhotos[index].name" 
+              class="w-full h-full object-cover"
+              @load="onSlotImageLoad(index, $event)"
+              @error="onSlotImageError(index, $event)"
+            />
+            <div class="absolute bottom-0 left-0 bg-black bg-opacity-50 text-white p-1 text-xs">
+              {{ selectedPhotos[index].name }} ({{ getImageSrc(selectedPhotos[index]) }})
+            </div>
+          </div>
+          <div v-else class="w-full h-full flex items-center justify-center bg-gray-100 cursor-pointer hover:bg-gray-200 transition-colors duration-200"
             @click="openFileExplorer(index)"
           >
             <span class="text-sm text-gray-600">Click to select photo (Slot {{ index + 1 }})</span>
@@ -41,8 +45,8 @@
     
     <FileExplorer 
       v-if="showFileExplorer"
+      :selected-photos="selectedPhotos"
       @select-image="handleImageSelect"
-      :selectedPhotos="selectedPhotos"
       class="mb-8"
     />
     
@@ -59,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import FileExplorer from '~/components/FileExplorer.vue';
 
@@ -76,6 +80,7 @@ const imageLoaded = ref(false);
 const containerRef = ref(null);
 const imageRef = ref(null);
 const imageDimensions = ref({ width: 0, height: 0 });
+const slotImageDimensions = ref([]);
 
 const getSlotStyle = (slot) => {
   if (!imageDimensions.value.width || !imageDimensions.value.height) return {};
@@ -87,17 +92,55 @@ const getSlotStyle = (slot) => {
   };
 };
 
+const onSlotImageLoad = (index, event) => {
+  console.log(`Image loaded for slot ${index}:`, event.target.src);
+};
+
+const onSlotImageError = (index, event) => {
+  console.error(`Error loading image for slot ${index}:`, event.target.src);
+  // Set a fallback image or handle the error as needed
+  selectedPhotos.value[index].path = '/path/to/fallback-image.jpg';
+};
+
+const getImageSrc = (photo) => {
+  if (!photo || typeof photo !== 'object') {
+    console.error('Invalid photo object:', photo);
+    return '';
+  }
+  if (!photo.path) {
+    console.error('Photo object has no path:', photo);
+    return '';
+  }
+  if (photo.path.startsWith('http') || photo.path.startsWith('data:')) {
+    return photo.path;
+  }
+  return `/api/files?path=${encodeURIComponent(photo.path)}`;
+};
+
 const handleImageSelect = (image) => {
-  if (currentSlotIndex.value !== null) {
-    selectedPhotos.value[currentSlotIndex.value] = image;
+  console.log('handleImageSelect called with:', image);
+  console.log('Current slot index:', currentSlotIndex.value);
+  if (currentSlotIndex.value !== null && currentSlotIndex.value >= 0 && currentSlotIndex.value < selectedPhotos.value.length) {
+    selectedPhotos.value = [...selectedPhotos.value];
+    selectedPhotos.value[currentSlotIndex.value] = {
+      ...image,
+      path: image.path || ''  // Ensure path is always a string
+    };
+    console.log('Updated selectedPhotos:', selectedPhotos.value);
     currentSlotIndex.value = null;
     showFileExplorer.value = false;
+  } else {
+    console.error('Invalid current slot index:', currentSlotIndex.value);
   }
 };
 
 const openFileExplorer = (index) => {
+  console.log('Opening file explorer for slot:', index);
   currentSlotIndex.value = index;
-  showFileExplorer.value = true;
+  nextTick(() => {
+    showFileExplorer.value = true;
+    console.log('FileExplorer should now be visible');
+  });
 };
 
 const allPhotosSelected = computed(() => {
@@ -158,5 +201,13 @@ onMounted(async () => {
     error.value = 'No template selected. Please choose a template first.';
     setTimeout(() => router.push('/template-selection'), 3000);
   }
+});
+
+watch(() => showFileExplorer.value, (newValue) => {
+  console.log('showFileExplorer changed:', newValue);
+});
+
+watch(() => currentSlotIndex.value, (newValue) => {
+  console.log('currentSlotIndex changed:', newValue);
 });
 </script>

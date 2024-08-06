@@ -21,5 +21,13 @@ export default defineNuxtConfig({
   },
   modules: [
     '@nuxtjs/tailwindcss'
-  ]
+  ],
+  runtimeConfig: {
+    baseDir: process.env.BASE_DIR,
+    thumbnailSize: parseInt(process.env.THUMBNAIL_SIZE || '100', 10),
+    public: {
+      baseDir: process.env.BASE_DIR,
+      thumbnailSize: parseInt(process.env.THUMBNAIL_SIZE || '100', 10)
+    }
+  }
 })
