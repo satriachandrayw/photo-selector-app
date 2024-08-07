@@ -1,4 +1,6 @@
 import { defineEventHandler, createError } from 'h3'
+import fs from 'fs/promises'
+import path from 'path'
 
 export default defineEventHandler(async (event) => {
   const id = event.context.params?.id
@@ -29,6 +31,22 @@ export default defineEventHandler(async (event) => {
     throw createError({
       statusCode: 404,
       statusMessage: 'Template not found'
+    })
+  }
+
+  // Read the frame image file
+  try {
+    const imagePath = path.join(process.cwd(), 'assets', 'templates', template.frameSrc)
+    const imageBuffer = await fs.readFile(imagePath)
+    const base64Image = imageBuffer.toString('base64')
+    
+    // Add the image data to the template object
+    template.frameImageData = `data:image/png;base64,${base64Image}`
+  } catch (error) {
+    console.error('Error reading frame image:', error)
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'Failed to read frame image'
     })
   }
 

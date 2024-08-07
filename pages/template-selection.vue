@@ -1,24 +1,22 @@
 <template>
   <div class="template-selection">
     <h1>Select a Photo Layout</h1>
-    <p>Debug: Component is rendered</p>
-    <div v-if="isLoading" class="loading">
-      Loading templates, please wait...
-    </div>
+    <p v-if="isLoading">Loading templates...</p>
+    <p v-if="error" class="error-message">{{ error }}</p>
     <div v-else>
       <p>Number of templates: {{ templates.length }}</p>
       <div class="templates-grid">
         <div v-for="template in templates" :key="template.id" class="template-item" 
-             :class="{ 'selected': selectedTemplate === template }"
+             :class="{ 'selected': selectedTemplate?.id === template.id }"
              @click="selectTemplate(template)">
           <h3>{{ template.name }} (ID: {{ template.id }})</h3>
           <div class="frame-preview">
-            <img :src="template.frameSrc" :alt="template.name" class="frame-overlay-preview" />
-            <div v-if="selectedTemplate === template" class="selected-marker">
+            <img :src="template.frameImageData" :alt="template.name" class="frame-overlay-preview" />
+            <div v-if="selectedTemplate?.id === template.id" class="selected-marker">
               <span class="checkmark">✓</span>
             </div>
           </div>
-          <p>Photo slots: {{ template.photoSlots }}</p>
+          <p>Photo slots: {{ template.slots.length }}</p>
         </div>
       </div>
     </div>
@@ -27,14 +25,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { usePhotoEditorStore } from '~/stores/photoEditorStore'
 
 const router = useRouter()
+const photoEditorStore = usePhotoEditorStore()
 
 const templates = ref([])
-const selectedTemplate = ref(null)
-const isLoading = ref(true)
+const selectedTemplate = computed(() => photoEditorStore.selectedTemplate)
+const isLoading = computed(() => photoEditorStore.isLoading)
+const error = computed(() => photoEditorStore.error)
 
 const fetchTemplates = async () => {
   try {
@@ -47,13 +48,15 @@ const fetchTemplates = async () => {
     console.log('Client: Templates after assignment:', JSON.stringify(templates.value, null, 2))
   } catch (error) {
     console.error('Error fetching templates:', error)
+    photoEditorStore.setError('Failed to load templates. Please try again.')
   } finally {
-    isLoading.value = false
+    photoEditorStore.setLoading(false)
   }
 }
 
 const selectTemplate = (template) => {
-  selectedTemplate.value = template
+  photoEditorStore.setTemplate(template)
+  photoEditorStore.saveToLocalStorage()
 }
 
 const proceedToPhotoSelection = () => {
@@ -62,7 +65,7 @@ const proceedToPhotoSelection = () => {
       path: '/select-photo',
       query: { 
         templateId: selectedTemplate.value.id,
-        photoSlots: selectedTemplate.value.photoSlots
+        photoSlots: selectedTemplate.value.slots.length
       }
     })
   }
@@ -70,7 +73,11 @@ const proceedToPhotoSelection = () => {
 
 onMounted(() => {
   console.log('Client: Component mounted, calling fetchTemplates')
-  fetchTemplates()
+  if (!photoEditorStore.selectedTemplate) {
+    fetchTemplates()
+  } else {
+    templates.value = [photoEditorStore.selectedTemplate]
+  }
 })
 </script>
 

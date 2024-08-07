@@ -1,36 +1,25 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia'
+import { usePhotoEditorStore } from '~/stores/photoEditorStore';
+import { usePhotoOperations } from '~/composables/usePhotoOperations'
 
 const router = useRouter();
-const route = useRoute();
+const photoEditorStore = usePhotoEditorStore();
+const { selectedPhotos, photoUrls } = storeToRefs(photoEditorStore)
 
-const selectedTemplate = ref(null);
-const selectedPhotos = ref([]);
-const photoAdjustments = ref([]);
+const selectedTemplate = computed(() => photoEditorStore.selectedTemplate);
+const photoAdjustments = computed(() => photoEditorStore.photoAdjustments);
+const frameImageSrc = computed(() => photoEditorStore.frameImageSrc);
+
 const isLoading = ref(true);
 const error = ref(null);
 
-const fetchFilePath = async (fileName) => {
-  try {
-    console.log('Fetching file for:', fileName);
-    const response = await fetch(`/api/files/${encodeURIComponent(fileName)}`);
-    console.log('API response status:', response.status);
-    if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
-    
-    // Create a blob URL from the response
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    
-    return { name: fileName, url };
-  } catch (error) {
-    console.error('Error fetching file:', error);
-    return null;
-  }
-};
+const { rotatePhoto, zoomPhoto, movePhoto } = usePhotoOperations()
 
 const frameContainerStyle = computed(() => ({
-  backgroundImage: `url(${selectedTemplate.value?.frameSrc})`,
+  backgroundImage: `url(${frameImageSrc.value})`,
   backgroundSize: 'contain',
   backgroundRepeat: 'no-repeat',
   backgroundPosition: 'center',
@@ -43,15 +32,15 @@ const frameContainerStyle = computed(() => ({
 
 const getSlotStyle = (slot) => ({
   position: 'absolute',
-  left: `${(slot.x / selectedTemplate.value.width) * 100}%`,
-  top: `${(slot.y / selectedTemplate.value.height) * 100}%`,
-  width: `${(slot.width / selectedTemplate.value.width) * 100}%`,
-  height: `${(slot.height / selectedTemplate.value.height) * 100}%`,
+  left: `${slot.x}%`,
+  top: `${slot.y}%`,
+  width: `${slot.width}%`,
+  height: `${slot.height}%`,
   overflow: 'hidden',
 });
 
-const getPhotoStyle = (index) => {
-  const adjustment = photoAdjustments.value[index];
+const getPhotoStyle = (photoId) => {
+  const adjustment = photoAdjustments.value[photoId];
   return {
     width: '100%',
     height: '100%',
@@ -61,27 +50,29 @@ const getPhotoStyle = (index) => {
   };
 };
 
-const adjustPhoto = (index, type, value) => {
-  const adjustment = photoAdjustments.value[index];
-  switch (type) {
-    case 'moveX':
-      adjustment.x += value;
-      break;
-    case 'moveY':
-      adjustment.y += value;
-      break;
-    case 'zoom':
-      adjustment.scale = Math.max(0.1, adjustment.scale + value);
-      break;
-    case 'rotate':
-      adjustment.rotation += value;
-      break;
-  }
-};
+onMounted(async () => {
+  photoEditorStore.loadFromLocalStorage();
+  await photoEditorStore.loadPhotoUrls();
+  isLoading.value = false;
+});
 
-const fitToSlot = (index) => {
-  photoAdjustments.value[index] = { x: 0, y: 0, scale: 1, rotation: 0 };
-};
+onUnmounted(() => {
+  photoEditorStore.saveToLocalStorage();
+  photoEditorStore.clearPhotoUrls();
+});
+
+// Example usage in methods:
+const handleRotate = (photoId, angle) => {
+  rotatePhoto(photoId, angle)
+}
+
+const handleZoom = (photoId, factor) => {
+  zoomPhoto(photoId, factor)
+}
+
+const handleMove = (photoId, dx, dy) => {
+  movePhoto(photoId, dx, dy)
+}
 
 const saveArrangement = () => {
   // Implement save functionality here
@@ -89,45 +80,6 @@ const saveArrangement = () => {
   // You might want to send this data to your backend or store it locally
 };
 
-onMounted(async () => {
-  const templateId = route.query.templateId;
-  const photosJson = route.query.photos;
-
-  console.log('Route query:', route.query);
-
-  if (!templateId || !photosJson) {
-    console.error('Missing template ID or photos');
-    router.push('/select-photo');
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/templates/${templateId}`);
-    if (!response.ok) throw new Error('Failed to fetch template');
-    selectedTemplate.value = await response.json();
-    
-    const parsedPhotos = JSON.parse(photosJson);
-    console.log('Parsed photos:', parsedPhotos);
-    
-    // Fetch actual files for each photo
-    const photoPromises = parsedPhotos.map(async (photo) => {
-      console.log('Processing photo:', photo);
-      const fileData = await fetchFilePath(photo.name);
-      console.log('Fetched file data:', fileData);
-      return fileData;
-    });
-    
-    selectedPhotos.value = await Promise.all(photoPromises);
-    console.log('Selected photos with fetched data:', selectedPhotos.value);
-    
-    photoAdjustments.value = selectedPhotos.value.map(() => ({ x: 0, y: 0, scale: 1, rotation: 0 }));
-    isLoading.value = false;
-  } catch (error) {
-    console.error('Error setting up frame editor:', error);
-    error.value = error.message;
-    router.push('/select-photo');
-  }
-});
 </script>
 
 <template>
@@ -136,31 +88,31 @@ onMounted(async () => {
     <div v-if="selectedTemplate" class="frame-container" :style="frameContainerStyle">
       <div v-for="(slot, index) in selectedTemplate.slots" :key="index" class="photo-slot" :style="getSlotStyle(slot)">
         <img 
-          v-if="selectedPhotos[index] && selectedPhotos[index].url"
-          :src="selectedPhotos[index].url" 
-          :alt="selectedPhotos[index].name" 
-          class="photo" 
-          :style="getPhotoStyle(index)"
+          v-if="selectedPhotos[index] && photoUrls[selectedPhotos[index].name]"
+          :src="photoUrls[selectedPhotos[index].name]"
+          :alt="selectedPhotos[index].name"
+          :style="getPhotoStyle(selectedPhotos[index].id)"
         />
-        <div v-else class="placeholder">
-          Image not found
-        </div>
       </div>
     </div>
     <div class="controls">
       <div v-for="(photo, index) in selectedPhotos" :key="index" class="photo-control">
         <img :src="photo.path" :alt="photo.name" class="thumbnail" />
         <div class="adjustment-controls">
-          <button @click="adjustPhoto(index, 'moveX', -10)">←</button>
-          <button @click="adjustPhoto(index, 'moveX', 10)">→</button>
-          <button @click="adjustPhoto(index, 'moveY', -10)">↑</button>
-          <button @click="adjustPhoto(index, 'moveY', 10)">��</button>
-          <button @click="adjustPhoto(index, 'zoom', 0.1)">Zoom +</button>
-          <button @click="adjustPhoto(index, 'zoom', -0.1)">Zoom -</button>
-          <button @click="adjustPhoto(index, 'rotate', 90)">Rotate</button>
-          <button @click="fitToSlot(index)">Fit to Slot</button>
+          <button @click="adjustPhoto(photo.name, 'moveX', -10)">←</button>
+          <button @click="adjustPhoto(photo.name, 'moveX', 10)">→</button>
+          <button @click="adjustPhoto(photo.name, 'moveY', -10)">↑</button>
+          <button @click="adjustPhoto(photo.name, 'moveY', 10)"></button>
+          <button @click="adjustPhoto(photo.name, 'zoom', 0.1)">Zoom +</button>
+          <button @click="adjustPhoto(photo.name, 'zoom', -0.1)">Zoom -</button>
+          <button @click="adjustPhoto(photo.name, 'rotate', 90)">Rotate</button>
+          <button @click="fitToSlot(photo.name)">Fit to Slot</button>
         </div>
       </div>
+      <button @click="handleRotate(selectedPhotoId, 90)">Rotate 90°</button>
+      <button @click="handleZoom(selectedPhotoId, 1.1)">Zoom In</button>
+      <button @click="handleZoom(selectedPhotoId, 0.9)">Zoom Out</button>
+      <!-- Add move controls as needed -->
     </div>
     <button @click="saveArrangement" class="save-button">Save Arrangement</button>
     <div v-if="isLoading" class="loading">Loading...</div>

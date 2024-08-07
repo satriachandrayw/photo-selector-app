@@ -2,14 +2,23 @@
   <div class="result-preview">
     <h1>Your Arranged Photos</h1>
     <div class="frame-container" :style="frameContainerStyle">
-      <div v-for="(cell, index) in layout" :key="index" class="frame-cell" :style="getCellStyle(cell)">
-        <div v-if="photos[index]" class="photo-container" :style="getPhotoContainerStyle(index)">
-          <img :src="photos[index].path" :alt="photos[index].name" class="photo" :style="getPhotoStyle(index)" />
-        </div>
+      <div 
+        v-for="(slot, index) in selectedTemplate.slots" 
+        :key="index" 
+        class="photo-slot" 
+        :style="getSlotStyle(slot)"
+      >
+        <img 
+          v-if="selectedPhotos[index]"
+          :src="selectedPhotos[index].url" 
+          :alt="selectedPhotos[index].name" 
+          class="photo" 
+          :style="getPhotoStyle(selectedPhotos[index].id)"
+        />
       </div>
     </div>
     <div class="metadata">
-      <p>Template: {{ templateName }}</p>
+      <p>Template: {{ selectedTemplate.name }}</p>
       <p>Created: {{ creationDate }}</p>
     </div>
     <div class="share-options">
@@ -27,19 +36,19 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { usePhotoEditorStore } from '~/stores/photoEditorStore';
 
 const router = useRouter();
 const route = useRoute();
+const photoEditorStore = usePhotoEditorStore();
 
-const photos = ref([]);
-const layout = ref([]);
-const photoStyles = ref([]);
-const templateName = ref('');
+const selectedTemplate = computed(() => photoEditorStore.selectedTemplate);
+const selectedPhotos = computed(() => photoEditorStore.selectedPhotos);
 const creationDate = computed(() => new Date().toLocaleString());
 
 const frameContainerStyle = computed(() => {
-  const maxX = Math.max(...layout.value.map(cell => cell.x + cell.w));
-  const maxY = Math.max(...layout.value.map(cell => cell.y + cell.h));
+  const maxX = Math.max(...selectedTemplate.value.slots.map(slot => slot.x + slot.width));
+  const maxY = Math.max(...selectedTemplate.value.slots.map(slot => slot.y + slot.height));
   return {
     display: 'grid',
     gridTemplateColumns: `repeat(${maxX}, 1fr)`,
@@ -54,40 +63,28 @@ const frameContainerStyle = computed(() => {
   };
 });
 
-const getCellStyle = (cell) => ({
-  gridColumn: `${cell.x + 1} / span ${cell.w}`,
-  gridRow: `${cell.y + 1} / span ${cell.h}`,
-  backgroundColor: 'white',
-  overflow: 'hidden',
-  position: 'relative',
-});
-
-const getPhotoContainerStyle = (index) => ({
-  width: '100%',
-  height: '100%',
-  overflow: 'hidden',
-  position: 'relative',
-});
-
-const getPhotoStyle = (index) => ({
+const getSlotStyle = (slot) => ({
   position: 'absolute',
-  left: `${photoStyles.value[index].x}%`,
-  top: `${photoStyles.value[index].y}%`,
-  width: `${photoStyles.value[index].scale * 100}%`,
-  height: `${photoStyles.value[index].scale * 100}%`,
-  objectFit: 'cover',
-  transform: 'translate(-50%, -50%)',
+  left: `${slot.x}%`,
+  top: `${slot.y}%`,
+  width: `${slot.width}%`,
+  height: `${slot.height}%`,
 });
+
+const getPhotoStyle = (photoId) => {
+  const adjustment = photoEditorStore.photoAdjustments[photoId];
+  return {
+    transform: `translate(${adjustment.x}px, ${adjustment.y}px) scale(${adjustment.scale}) rotate(${adjustment.rotation}deg)`,
+  };
+};
 
 const goBack = () => {
-  router.back();
+  router.push('/frame-editor');
 };
 
 const finalize = () => {
-  // Here you would typically implement the logic to generate and download the final image
-  console.log('Finalizing and downloading...');
-  // For now, we'll just show an alert
-  alert('Your arranged photos would be downloaded here!');
+  // Implement download functionality
+  console.log('Downloading final image...');
 };
 
 const shareOnSocialMedia = (platform) => {
@@ -96,8 +93,8 @@ const shareOnSocialMedia = (platform) => {
 };
 
 const shareViaEmail = () => {
-  // Implement email sharing logic
-  console.log('Sharing via email');
+  // Implement email sharing
+  console.log('Sharing via email...');
 };
 
 onMounted(() => {
@@ -109,10 +106,9 @@ onMounted(() => {
     return;
   }
 
-  photos.value = arrangementData.photos;
-  photoStyles.value = arrangementData.styles;
-  layout.value = arrangementData.layout;
-  templateName.value = arrangementData.templateName || 'Custom Template';
+  photoEditorStore.selectedPhotos = arrangementData.photos;
+  photoEditorStore.photoAdjustments = arrangementData.styles;
+  photoEditorStore.selectedTemplate = arrangementData.layout;
 });
 </script>
 

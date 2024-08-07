@@ -8,7 +8,7 @@ export default defineNuxtConfig({
     dirs: ['assets']
   },
   nitro: {
-    plugins: ['~/server/plugins/analyze-frames.ts'],
+    plugins: ['~/plugins/analyze-frames.ts'],
     routeRules: {
       '/api/**': { cache: { maxAge: 60 * 60 } }
     },
@@ -20,7 +20,8 @@ export default defineNuxtConfig({
     }
   },
   modules: [
-    '@nuxtjs/tailwindcss'
+    '@nuxtjs/tailwindcss',
+    '@pinia/nuxt'
   ],
   runtimeConfig: {
     baseDir: process.env.BASE_DIR,
@@ -29,5 +30,12 @@ export default defineNuxtConfig({
       baseDir: process.env.BASE_DIR,
       thumbnailSize: parseInt(process.env.THUMBNAIL_SIZE || '100', 10)
     }
-  }
+  },
+  pinia: {
+    autoImports: ['defineStore', 'storeToRefs'],
+  },
+  imports: {
+    dirs: ['stores'],
+  },
+  plugins: ['~/plugins/piniaPersist.ts'],
 })

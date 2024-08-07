@@ -1,7 +1,7 @@
 import { defineNitroPlugin } from 'nitropack/runtime/plugin'
 import sharp from 'sharp'
 import path from 'path'
-import fs from 'fs'
+import fs from 'fs/promises'
 
 const cacheDir = path.join(process.cwd(), '.cache')
 if (!fs.existsSync(cacheDir)) {
@@ -14,73 +14,83 @@ async function analyzeFrame(framePath: string) {
   try {
     const image = sharp(fullPath)
     const metadata = await image.metadata()
+    const { data, info } = await extractAlphaChannel(image)
+    const slots = detectSlots(data, info.width, info.height)
 
-    const { data, info } = await image
-      .extractChannel('alpha')
-      .raw()
-      .toBuffer({ resolveWithObject: true })
-
-    const { width, height } = info
-
-    const alphaThreshold = 10
-    const slots = []
-    const visited = new Uint8Array(width * height)
-
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const idx = y * width + x
-        if (data[idx] < alphaThreshold && !visited[idx]) {
-          const slot = floodFill(data, visited, width, height, x, y, alphaThreshold)
-          if (slot.width > 20 && slot.height > 20) {
-            slots.push(slot)
-          }
-        }
-      }
-    }
-
-    slots.sort((a, b) => {
-      if (Math.abs(a.y - b.y) < 10) {
-        return a.x - b.x;
-      }
-      return a.y - b.y;
-    });
-
-    const debugImage = sharp({
-      create: {
-        width: width,
-        height: height,
-        channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: 255 }
-      }
-    })
-    .composite([
-      { input: Buffer.from(data), raw: { width, height, channels: 1 } },
-      ...slots.map((slot, index) => ({
-        input: {
-          create: {
-            width: slot.width,
-            height: slot.height,
-            channels: 4,
-            background: { r: 255, g: 0, b: 0, alpha: 128 }
-          }
-        },
-        top: slot.y,
-        left: slot.x
-      }))
-    ])
-    .png()
-
-    await debugImage.toFile(path.join(cacheDir, `debug_${path.basename(framePath)}`))
+    await generateDebugImage(data, slots, info.width, info.height, framePath)
 
     return {
       photoSlots: slots.length,
       slots: slots,
-      width: width,
-      height: height
+      width: info.width,
+      height: info.height
     }
   } catch (error) {
     throw error
   }
+}
+
+async function extractAlphaChannel(image) {
+  return await image
+    .extractChannel('alpha')
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+}
+
+function detectSlots(data, width, height) {
+  const alphaThreshold = 10
+  const slots = []
+  const visited = new Uint8Array(width * height)
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x
+      if (data[idx] < alphaThreshold && !visited[idx]) {
+        const slot = floodFill(data, visited, width, height, x, y, alphaThreshold)
+        if (slot.width > 20 && slot.height > 20) {
+          slots.push(slot)
+        }
+      }
+    }
+  }
+
+  slots.sort((a, b) => {
+    if (Math.abs(a.y - b.y) < 10) {
+      return a.x - b.x
+    }
+    return a.y - b.y
+  })
+
+  return slots
+}
+
+async function generateDebugImage(data, slots, width, height, framePath) {
+  const debugImage = sharp({
+    create: {
+      width: width,
+      height: height,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 255 }
+    }
+  })
+  .composite([
+    { input: Buffer.from(data), raw: { width, height, channels: 1 } },
+    ...slots.map((slot, index) => ({
+      input: {
+        create: {
+          width: slot.width,
+          height: slot.height,
+          channels: 4,
+          background: { r: 255, g: 0, b: 0, alpha: 128 }
+        }
+      },
+      top: slot.y,
+      left: slot.x
+    }))
+  ])
+  .png()
+
+  await debugImage.toFile(path.join(cacheDir, `debug_${path.basename(framePath)}`))
 }
 
 function floodFill(data: Uint8Array, visited: Uint8Array, width: number, height: number, startX: number, startY: number, threshold: number) {
