@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@pinia/nuxt": "^0.5.3",
+    "@vueuse/core": "^10.11.0",
+    "@vueuse/shared": "^10.11.0",
     "nuxt": "^3.12.4",
     "pinia": "^2.2.1",
     "sharp": "^0.33.4",

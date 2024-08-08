@@ -1,7 +1,7 @@
 import { defineNitroPlugin } from 'nitropack/runtime/plugin'
 import sharp from 'sharp'
 import path from 'path'
-import fs from 'fs/promises'
+import fs from 'fs'
 
 const cacheDir = path.join(process.cwd(), '.cache')
 if (!fs.existsSync(cacheDir)) {

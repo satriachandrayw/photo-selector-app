@@ -8,7 +8,7 @@ export default defineNuxtConfig({
     dirs: ['assets']
   },
   nitro: {
-    plugins: ['~/plugins/analyze-frames.ts'],
+    plugins: ['~/server/plugins/analyze-frames.ts'],
     routeRules: {
       '/api/**': { cache: { maxAge: 60 * 60 } }
     },

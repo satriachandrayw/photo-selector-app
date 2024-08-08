@@ -11,7 +11,7 @@
              @click="selectTemplate(template)">
           <h3>{{ template.name }} (ID: {{ template.id }})</h3>
           <div class="frame-preview">
-            <img :src="template.frameImageData" :alt="template.name" class="frame-overlay-preview" />
+            <img :src="template.frameSrc" :alt="template.name" class="frame-overlay-preview" />
             <div v-if="selectedTemplate?.id === template.id" class="selected-marker">
               <span class="checkmark">✓</span>
             </div>

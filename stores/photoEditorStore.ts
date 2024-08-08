@@ -1,7 +1,5 @@
 import { defineStore } from 'pinia'
 import { shallowRef } from 'vue'
-import { useStack } from '@vueuse/core'
-
 interface Photo {
   id: number;
   name: string;
@@ -32,7 +30,6 @@ export const usePhotoEditorStore = defineStore('photoEditor', {
     photoUrls: {} as Record<string, string>,
     isLoading: false,
     error: null as string | null,
-    history: useStack([]),
     nextPhotoId: 1,
   }),
 
@@ -66,17 +63,9 @@ export const usePhotoEditorStore = defineStore('photoEditor', {
     },
 
     applyAdjustment(photoId: number, adjustment: Partial<PhotoAdjustment>) {
-      const oldAdjustment = { ...this.photoAdjustments[photoId] };
       this.updatePhotoAdjustment(photoId, adjustment);
-      this.history.push({ photoId, oldAdjustment });
     },
 
-    undo() {
-      const lastAction = this.history.pop();
-      if (lastAction) {
-        this.updatePhotoAdjustment(lastAction.photoId, lastAction.oldAdjustment);
-      }
-    },
 
     async loadPhotoUrls() {
       for (const photo of this.selectedPhotos) {

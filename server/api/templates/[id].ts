@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
 
   // Read the frame image file
   try {
-    const imagePath = path.join(process.cwd(), 'assets', 'templates', template.frameSrc)
+    const imagePath = path.join(process.cwd(), 'public', template.frameSrc)
     const imageBuffer = await fs.readFile(imagePath)
     const base64Image = imageBuffer.toString('base64')
     
