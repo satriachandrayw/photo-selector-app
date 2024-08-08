@@ -10,7 +10,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 
 const navigateToFrameSelector = () => {
-  router.push('/select-photo');
+  router.push('/template-selection');
 };
 </script>
 

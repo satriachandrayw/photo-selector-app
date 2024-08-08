@@ -1,8 +1,6 @@
 import { defineEventHandler } from 'h3'
 import path from 'path'
 import { promises as fsPromises } from 'fs'
-import { sendStream } from 'h3'
-import { createReadStream } from 'fs'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
@@ -17,27 +15,26 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  console.log('Searching for file:', fileName);
-  
   try {
     const filePath = await searchFile(BASE_DIR, fileName);
-    console.log('Found file path:', filePath);
     
     if (filePath) {
       // Get the file extension
       const ext = path.extname(filePath).toLowerCase();
       
       // Set the appropriate Content-Type
-      let contentType = 'application/octet-stream'; // default
-      if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-      else if (ext === '.png') contentType = 'image/png';
+      let contentType = 'image/jpeg'; // default to JPEG
+      if (ext === '.png') contentType = 'image/png';
       else if (ext === '.gif') contentType = 'image/gif';
       
       event.node.res.setHeader('Content-Type', contentType);
       event.node.res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
       
-      // Stream the file
-      return sendStream(event, createReadStream(filePath));
+      // Read the file and send it as a buffer
+      const fileBuffer = await fsPromises.readFile(filePath);
+      console.log('File size:', fileBuffer.length, 'bytes');
+      
+      return fileBuffer;
     } else {
       console.log('File not found');
       throw createError({
@@ -46,7 +43,7 @@ export default defineEventHandler(async (event) => {
       });
     }
   } catch (error) {
-    console.error('Error searching for file:', error);
+    console.error('Error processing file:', error);
     throw createError({
       statusCode: 500,
       statusMessage: 'Internal server error'

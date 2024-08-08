@@ -22,10 +22,22 @@
         >
           <div v-if="selectedPhotos[index]" class="w-full h-full relative">
             <img 
-              :src="selectedPhotos[index].url"
+              v-if="selectedPhotos[index].blobUrl"
+              :src="selectedPhotos[index].blobUrl"
               :alt="selectedPhotos[index].name" 
               class="w-full h-full object-cover"
             />
+            <div v-else class="w-full h-full flex items-center justify-center bg-gray-200">
+              <span v-if="isLoading" class="text-sm text-gray-600">Loading...</span>
+              <span v-else class="text-sm text-red-600">Failed to load image</span>
+            </div>
+            <!-- Add the "x" icon for deselecting -->
+            <button 
+              @click="deselectPhoto(selectedPhotos[index].id)"
+              class="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+            >
+              ×
+            </button>
           </div>
           <div v-else 
                class="w-full h-full flex items-center justify-center bg-gray-100 cursor-pointer hover:bg-gray-200 transition-colors duration-200"
@@ -56,7 +68,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { usePhotoEditorStore } from '~/stores/photoEditorStore';
 import FileExplorer from '~/components/FileExplorer.vue';
@@ -88,12 +100,13 @@ const getSlotStyle = (slot) => {
   };
 };
 
-const handleImageSelect = (image) => {
+const handleImageSelect = async (image) => {
   if (currentSlotIndex.value !== null) {
-    photoEditorStore.addPhoto({
+    await photoEditorStore.addPhoto({
       name: image.name,
       url: image.path
     });
+
     currentSlotIndex.value = null;
     showFileExplorer.value = false;
   }
@@ -119,6 +132,10 @@ const onImageLoad = () => {
   }
 };
 
+const deselectPhoto = (photoId) => {
+  photoEditorStore.removePhoto(photoId);
+};
+
 onMounted(async () => {
   const templateId = route.query.templateId;
   if (templateId) {
@@ -138,4 +155,8 @@ onMounted(async () => {
     setTimeout(() => router.push('/template-selection'), 3000);
   }
 });
+
+watch(() => photoEditorStore.selectedPhotos, () => {
+  photoEditorStore.loadPhotoUrls();
+}, { deep: true });
 </script>
